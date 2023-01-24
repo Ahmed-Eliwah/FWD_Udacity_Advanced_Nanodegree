@@ -19,36 +19,41 @@
 #include "Bit_Math.h"
 
 
-
-/**********************************************************************************************************************
-*  LOCAL MACROS CONSTANT\FUNCTION
-*********************************************************************************************************************/	
-
 /**********************************************************************************************************************
  *  LOCAL DATA Types
  *********************************************************************************************************************/
-typedef uint8 PriorityValue;
 
+/* Cretaing a Varibale of the DataType CB_type*/
 CB_type Callback_ptr = NULL_PTR;
 
-/**********************************************************************************************************************
- *  GLOBAL DATA
- *********************************************************************************************************************/
 
 /**********************************************************************************************************************
  *  LOCAL FUNCTION PROTOTYPES
  *********************************************************************************************************************/
 
+
+
+/*  The IRQ Handler of SYSTICK Peripheral */
 void SysTick_Handler(void);
 
-/**********************************************************************************************************************
- *  LOCAL FUNCTIONS
- *********************************************************************************************************************/
 
 
 /**********************************************************************************************************************
  *  GLOBAL FUNCTIONS
  *********************************************************************************************************************/
+
+
+/**************************************************************************************
+* \Syntax          : void Interrupt_CB(CB_type ptr)                                      
+* \Description     : Function thar Act as a Protector or Guared for Entering the ISR
+					 SYSTICK Handler
+*                                                                             
+* \Sync\Async      : Synchronous                                               
+* \Reentrancy      : Non Reentrant                                             
+* \Parameters (in) : CB_type -- ptr                    
+* \Parameters (out): None                                                      
+* \Return value:   : None
+*****************************************************************************************/
 void Interrupt_CB(CB_type ptr)
 {
 	if (NULL_PTR != ptr)
@@ -57,17 +62,19 @@ void Interrupt_CB(CB_type ptr)
 	}
 }
 
-/******************************************************************************
-* \Syntax          : void IntCrtl_Init(void)                                      
+
+
+/**************************************************************************************
+* \Syntax          : void IntCrtl_Init(const Exceptions_Config* ExceptionsConfigPtr)                                      
 * \Description     : initialize Nvic\SCB Module by parsing the Configuration 
 *                    into Nvic\SCB registers                                    
 *                                                                             
 * \Sync\Async      : Synchronous                                               
 * \Reentrancy      : Non Reentrant                                             
-* \Parameters (in) : None                     
+* \Parameters (in) : const Exceptions_Config* -- ExceptionsConfigPtr                     
 * \Parameters (out): None                                                      
 * \Return value:   : None
-*******************************************************************************/
+*****************************************************************************************/
 void IntCrtl_Init(const Exceptions_Config* ExceptionsConfigPtr)
 {
 
@@ -83,6 +90,9 @@ void IntCrtl_Init(const Exceptions_Config* ExceptionsConfigPtr)
 }
 
 
+
+
+/*  The IRQ Handler of SYSTICK Peripheral */
 void SysTick_Handler(void)
 {
 	if(NULL_PTR != Callback_ptr)

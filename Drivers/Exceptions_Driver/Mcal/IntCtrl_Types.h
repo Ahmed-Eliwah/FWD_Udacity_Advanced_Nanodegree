@@ -21,6 +21,10 @@
  *  GLOBAL DATA TYPES AND STRUCTURES
  *********************************************************************************************************************/
 
+
+
+
+/*Enum for Handling Exceptions Types of The Arm Cortex M4 Proccessor */
 typedef enum
 {
     Reset=1,
@@ -39,7 +43,7 @@ typedef enum
 
 
 
-
+/*Enum for Handling Interrupts Types of The Arm Cortex M4 Proccessor */
 typedef enum
 {
     GPIO_Port_A,

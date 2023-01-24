@@ -20,8 +20,9 @@
  *  GLOBAL CONSTANT MACROS
  *********************************************************************************************************************/
 
-#define NUMBER_OF_EXCEPTIONS                    (uint8)(1U)
 
+/* Macro for user to put how many Exceptio he will use */
+#define NUMBER_OF_EXCEPTIONS                    (uint8)(1U)
 
  
 #endif  /* INTCTRL_CFG_H */

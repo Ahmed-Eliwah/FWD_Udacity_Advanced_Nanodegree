@@ -108,9 +108,100 @@ extern const Port_ConfigType Port_PinConfig[PORT_CONFIGURED_PINS];
 /**********************************************************************************************************************
  *  GLOBAL FUNCTION PROTOTYPES
  *********************************************************************************************************************/
+
+/**********************************************************************************************************************
+ *  GLOBAL FUNCTIONS
+ *********************************************************************************************************************/
+
+
+
+/**********************************************************************************************************************
+*  Service name      : Dio_FlipChannel
+*  Syntax            : void Dio_FlipChannel( Port_Num PortNum,
+*                                             Port_PinNum PinNum )
+*  Mode              : Supervisor Mode (Privileged Mode)
+*  Sync/Async        : Synchronous
+*  Reentrancy        : Reentrant
+*  Parameters (in)   : PortNum - PortID
+*                      PinNum - Channel to work on
+*  Parameters (inout): None
+*  Parameters (out)  : None
+*  Return value      : None
+*  Description       : Service to Flip the level of a channel.
+*  *********************************************************************************************************************/
 void Dio_FlipChannel(Port_Num PortNum, Port_PinNum PinNum);
+
+
+
+/**********************************************************************************************************************
+*  Service name      : Dio_WriteChannel
+*  Syntax            : void Dio_WriteChannel( Port_Num PortNum,
+*                                             Port_PinNum PinNum )
+*  Mode              : Supervisor Mode (Privileged Mode)
+*  Sync/Async        : Synchronous
+*  Reentrancy        : Reentrant
+*  Parameters (in)   : PortNum - PortID
+*                      PinNum - Channel to work on
+*  Parameters (inout): None
+*  Parameters (out)  : None
+*  Return value      : None
+*  Description       : Service to set a level of a channel.
+*  *********************************************************************************************************************/
+void Dio_WriteChannel(Port_Num PortNum, Port_PinNum PinNum);
+
+
+
+/**********************************************************************************************************************
+*  Service name      : Dio_ClearChannel
+*  Syntax            : void Dio_ClearChannel( Port_Num PortNum,
+*                                             Port_PinNum PinNum )
+*  Mode              : Supervisor Mode (Privileged Mode)
+*  Sync/Async        : Synchronous
+*  Reentrancy        : Reentrant
+*  Parameters (in)   : PortNum - PortID
+*                      PinNum - Channel to work on
+*  Parameters (inout): None
+*  Parameters (out)  : None
+*  Return value      : None
+*  Description       : Service to Clear this channel.
+*  *********************************************************************************************************************/
+void Dio_ClearChannel(Port_Num PortNum, Port_PinNum PinNum);
+
+
+/**********************************************************************************************************************
+*  Service name      : Dio_ReadChannel
+*  Syntax            : uint8 Dio_ReadChannel( Port_Num PortNum,
+*                                             Port_PinNum PinNum )
+*  Mode              : Supervisor Mode (Privileged Mode)
+*  Sync/Async        : Synchronous
+*  Reentrancy        : Reentrant
+*  Parameters (in)   : PortNum - PortID
+*                      PinNum - Channel to work on
+*  Parameters (inout): None
+*  Parameters (out)  : Value of this Channel
+*  Return value      : None
+*  Description       : Service to read the level of a channel.
+*  *********************************************************************************************************************/
+uint8 Dio_ReadChannel(Port_Num PortNum, Port_PinNum PinNum);
+
+
+
+
+/**********************************************************************************************************************
+*  Service name      : Port_Init
+*  Syntax            : void Port_Init(const Port_ConfigType* ConfigPtr) 
+*  Mode              : Supervisor Mode (Privileged Mode)
+*  Sync/Async        : Synchronous
+*  Reentrancy        : Non Reentrant
+*  Parameters (in)   : const Port_ConfigType* - ConfigPtr --> Pointer to array of struct that holds user Configurations
+*  Parameters (inout): None
+*  Parameters (out)  : None
+*  Return value      : None
+*  Description       : initialize Selected Ports and Specific Pins modes 
+*  *********************************************************************************************************************/
 void Port_Init(const Port_ConfigType* ConfigPtr);
-uint8 Get_Bit_Value(Port_Num PortNum, Port_PinNum PinNum);
+
+
  
 #endif  /* PORT_H */
 

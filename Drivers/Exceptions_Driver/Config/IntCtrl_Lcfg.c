@@ -19,6 +19,12 @@
  *  GLOBAL DATA
  *********************************************************************************************************************/
 
+
+/* Array of Struct -- Every Element is a Seprate Configurations for the Selected Exception
+
+    1- Exception Type
+    2- Priority from Priority_0 to Priority_7
+*/
 const Exceptions_Config ExceptionsTypeConfig[NUMBER_OF_EXCEPTIONS] = 
 { 
     {SysTick, PRIORITY_0},

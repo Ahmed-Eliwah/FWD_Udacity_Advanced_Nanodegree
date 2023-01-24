@@ -15,6 +15,15 @@
 #include "SysTick.h"
 
 
+/* Struct That will hold the Cofigurations 
+   1- Systick Enable or Disable
+
+   2- Systick Interrupt Enable or Disable
+
+   3- Systick Clock Source
+
+*/
+
 const SysTick_Config SysTick_Config_Modes = 
 {
 	

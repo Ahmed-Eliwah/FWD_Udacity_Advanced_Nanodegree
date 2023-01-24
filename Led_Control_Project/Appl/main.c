@@ -3,31 +3,36 @@
 #include "SysTick.h"
 #include "Bit_Math.h"
 
+static uint8 on_overflows_needed;
+static uint8 off_overflows_needed;
 
-static uint8 flag;
+
+
 
 void Handle_SysTick_Driver_isr(void)
 {
-	static uint8 Isr_flag; 
-		
-	/* Blink The Bit That's Connected to The Led */
-	Dio_FlipChannel(Port_PinConfig[0].PortNum, Port_PinConfig[0].PortPinNum);
 	
-	
-	if(flag == 1)
+	if((on_overflows_needed > 0) && (off_overflows_needed == 1))
 	{
-		Isr_flag = 1;
+			/* Blink The Bit That's Connected to The Led */
+			Dio_WriteChannel(Port_PinConfig[0].PortNum, Port_PinConfig[0].PortPinNum);
 	}
 	
-	flag++;
-	
-	if(Isr_flag == 1)
+	else if((on_overflows_needed == 0) && (off_overflows_needed > 1))
 	{
-		flag = 0;
-		Isr_flag = 0;
+			/* Blink The Bit That's Connected to The Led */			
+			Dio_ClearChannel(Port_PinConfig[0].PortNum, Port_PinConfig[0].PortPinNum);
 	}
 	
+	else 
+	{
+		Dio_FlipChannel(Port_PinConfig[0].PortNum, Port_PinConfig[0].PortPinNum);
+	}
+
 }
+
+
+
 
 int main(void)
 {
@@ -41,24 +46,25 @@ int main(void)
 
 	Interrupt_CB(Handle_SysTick_Driver_isr);
 	
-	flag = 0;
-
+	uint8 PortNum_on  = Port_PinConfig[1].PortNum;
+	uint8 PinNum_on   = Port_PinConfig[1].PortPinNum;
+	
+	uint8 PortNum_off = Port_PinConfig[2].PortNum;
+	uint8 PinNum_off  = Port_PinConfig[2].PortPinNum;
+	
+	
+	uint8 ON_time = 0, OFF_time = 0;
+	
 	while(1){
 		
-		/* The Fisrt One to Enter the Desird On Time */
+		ON_time = Dio_ReadChannel(PortNum_on, PinNum_on);
 		
-		if(flag == 0)
-		{
-			/* Use Port Configrations to Get the Value of the Desird On Time in Seconds */
-			SysTick_Set_ReloadValue(Get_Bit_Value(Port_PinConfig[1].PortNum, Port_PinConfig[1].PortPinNum));
-		}
+		on_overflows_needed = SysTick_Set_Counts_Needed(ON_time);
 		
-		else if(flag == 1)
-		{
-			/* Use Port Configrations to Get the Value of the Desird Off Time in Seconds */
-			SysTick_Set_ReloadValue(Get_Bit_Value(Port_PinConfig[2].PortNum, Port_PinConfig[2].PortPinNum));
-		}
+		OFF_time = Dio_ReadChannel(PortNum_off, PinNum_off);
 		
+		off_overflows_needed = SysTick_Set_Counts_Needed(OFF_time) + 1;
+
 	}
 	
 }
