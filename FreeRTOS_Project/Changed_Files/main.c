@@ -1,81 +1,15 @@
-/*
- * FreeRTOS Kernel V10.2.0
- * Copyright (C) 2019 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of
- * this software and associated documentation files (the "Software"), to deal in
- * the Software without restriction, including without limitation the rights to
- * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
- * the Software, and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * http://www.FreeRTOS.org
- * http://aws.amazon.com/freertos
- *
- * 1 tab == 4 spaces!
- */
+#include "app.h"
 
-/* 
-	NOTE : Tasks run in system mode and the scheduler runs in Supervisor mode.
-	The processor MUST be in supervisor mode when vTaskStartScheduler is 
-	called.  The demo applications included in the FreeRTOS.org download switch
-	to supervisor mode prior to main being called.  If you are not using one of
-	these demo application projects then ensure Supervisor mode is used.
-*/
-
-
-/*
- * Creates all the demo application tasks, then starts the scheduler.  The WEB
- * documentation provides more details of the demo application tasks.
- * 
- * Main.c also creates a task called "Check".  This only executes every three 
- * seconds but has the highest priority so is guaranteed to get processor time.  
- * Its main function is to check that all the other tasks are still operational.
- * Each task (other than the "flash" tasks) maintains a unique count that is 
- * incremented each time the task successfully completes its function.  Should 
- * any error occur within such a task the count is permanently halted.  The 
- * check task inspects the count of each task to ensure it has changed since
- * the last time the check task executed.  If all the count variables have 
- * changed all the tasks are still executing error free, and the check task
- * toggles the onboard LED.  Should any task contain an error at any time 
- * the LED toggle rate will change from 3 seconds to 500ms.
- *
- */
-
-/* Standard includes. */
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#include "Bit_Math.h"
-
-/* Scheduler includes. */
-#include "FreeRTOS.h"
-#include "task.h"
-#include "lpc21xx.h"
-#include "queue.h"
-/* Peripheral includes. */
-#include "serial.h"
-#include "GPIO.h"
+// Macros for Each Task Period(DeadLine)
+#define BUTTON_ONE_PERIOD              			50
+#define BUTTON_TWO_PERIOD              			50
+#define UART_TRANSC_PERIOD            			20
+#define PERIODC_TRANSMIT_PERIOD             100
+#define LOAD_ONE_PERIOD             				10
+#define LOAD_TWO_PERIOD              				100
 
 
 /*-----------------------------------------------------------*/
-
-/* Constants to setup I/O and processor. */
-#define mainBUS_CLK_FULL	( ( unsigned char ) 0x01 )
-
-/* Constants for the ComTest demo application tasks. */
-#define mainCOM_TEST_BAUD_RATE	( ( unsigned long ) 115200 )
 
 /*
  * Configure the processor for use with the Keil demo board.  This is very
@@ -85,277 +19,290 @@
 static void prvSetupHardware( void );
 /*-----------------------------------------------------------*/
 
-/*Variables used in exe*/
-unsigned int _1st_button,_2nd_button,_1st_load,_2nd_load,Transmit_UART,Receiv_UART,SumExe,LoadCPU;
-
-/*All task Handlers in exe*/
-BaseType_t xReturned;
-TaskHandle_t B1_taskHandler,B2_taskHandler,Trans_TaskHandler,Receiv_TaskHandler,L1_TaskHandler,L2_TaskHandler;
-QueueHandle_t q1,q2,q3;
-
-void Periodic_Transmitter (void * pvParameters );
-void Uart_Receiver (void * pvParameters );
-void Button_1_Monitor( void * pvParameters );
-void Load_2_Simulation ( void * pvParameters );
-void Button_2_Monitor( void * pvParameters );
-void Load_1_Simulation ( void * pvParameters );
-
-
-char RT_state[400];
-
-/*
- * Application entry point:
- * Starts all the other tasks, then starts the scheduler. 
- */
  
  /*Tasks Implemntations */
- void Periodic_Transmitter (void * pvParameters )
-{   
-	uint8_t i = 0,size=15;
-	char stringToSend[15] = "\nnew period.";
-	TickType_t final_WT = xTaskGetTickCount();
-	for( ; ; )
-	{
-		for( i=0 ; i<size ; i++)
-		{	//Transmit the string
-			xQueueSend( q3 , stringToSend+i ,100); 
-		}
-		
-		GPIO_write(PORT_1,PIN2,PIN_IS_LOW);
-		vTaskDelayUntil( &final_WT , 100);
-		
-		GPIO_write(PORT_1,PIN2,PIN_IS_HIGH);
-		
-		GPIO_write(PORT_1,PIN0,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN1,PIN_IS_LOW);
-		
-		GPIO_write(PORT_1,PIN3,PIN_IS_LOW);
-		
-		GPIO_write(PORT_1,PIN4,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN5,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN6,PIN_IS_LOW);
-	}
-}
-
-
-void Uart_Receiver (void * pvParameters )
-{   
-	uint8_t size = 15,i=0;
-	signed char B1, B2;
-	//get the tick count
-	TickType_t final_WT = xTaskGetTickCount();
-	char recv_arr[15];
-	for( ; ; )
-	{
-		if( xQueueReceive( q1, &B1 , 0) && B1 != '.')
-		{
-			//first queue
-		xSerialPutChar('\n');	
-			if(B1=='+')
-			{   char pos_string[]="Positive edge from button1\n";
-							vSerialPutString((signed char *) pos_string, strlen(pos_string));
-			}
-			else
-			{  char neg_string[]="Negative edge from button1\n";
-							vSerialPutString((signed char *) neg_string, strlen(neg_string));
-			}
-		}
-		else
-		{
-			//add space
-			int x=0;
-			for(x=0;x<5;x++){
-			xSerialPutChar(' ');		
-}
-		}
-		if( xQueueReceive( q2, &B2 , 0) && B2 != '.')
-		{
-			//second queue
-			xSerialPutChar('\n');		
-			if(B2=='+')
-			{ char pos_string[]=" Positive edge from button 2 \n";
-							vSerialPutString((signed char *) pos_string, strlen(pos_string));
-			}
-			else
-			{	char neg_string[]=" Negative edge from button 2 \n";
-							vSerialPutString((signed char *) neg_string, strlen(neg_string));
-			}
-		}
-		else
-		{
-		 //add space
-			int x=0;
-			for(x=0;x<5;x++){
-			xSerialPutChar(' ');		
-}
-		}
-		
-		//third queue
-		if( uxQueueMessagesWaiting(q3) >0)
-		{
-			for( i=0 ; i<size ; i++)
-			{
-				xQueueReceive( q3, (recv_arr+i) , 0);
-			}
-			vSerialPutString( (signed char *) recv_arr, strlen(recv_arr));
-			xQueueReset(q3);
-		}
-				
-		GPIO_write(PORT_1,PIN3,PIN_IS_LOW);
-		vTaskDelayUntil( &final_WT , 20);
-		GPIO_write(PORT_1,PIN3,PIN_IS_HIGH);
-	
-		GPIO_write(PORT_1,PIN0,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN1,PIN_IS_LOW);
-		
-		GPIO_write(PORT_1,PIN2,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN4,PIN_IS_LOW);
-		
-		GPIO_write(PORT_1,PIN5,PIN_IS_LOW);
-		
-		GPIO_write(PORT_1,PIN6,PIN_IS_LOW);
-	}
-}
-
-void Button_1_Monitor( void * pvParameters )
+ 
+ /*
+ Task One --> Button_1_Monitor
+ 
+ The Functionality of this task is to catch any change on the Port0-Pin0 that refers to button one
+ 
+ and send data if any changes happend to the consumer task
+ 
+ */
+ 
+ void Button_1_Monitor( void * pvParameters )
 {
-	pinState_t B1_status, prev_status = GPIO_read(PORT_0 , PIN0); /*pin 16 */
-	TickType_t final_WT = xTaskGetTickCount();
-	signed char edges = 0;
+	pinState_t Button_one_current_state;
+	
+	pinState_t Button_one_previous_state = GPIO_read(PORT_0 , PIN0);
+	
+	TickType_t Current_Tick = xTaskGetTickCount();
+	
+	char Edge_Sign = 0;
+	
+	
 	for( ;; )
 	{
-	B1_status = GPIO_read(PORT_0 , PIN0);
-	if( B1_status == PIN_IS_HIGH && prev_status == PIN_IS_LOW)
+		//Get the Curent status of the pin0
+		Button_one_current_state = GPIO_read(PORT_0 , PIN0);
+		
+		if( Button_one_current_state == PIN_IS_HIGH && Button_one_previous_state == PIN_IS_LOW)
 		{
-	//a positive edge is assigned
-		   	edges = '+';
+	
+			// The last status was low and now is high so this is a positive edge
+			
+		   	Edge_Sign = 'p';
 		}
-	else if (B1_status == PIN_IS_LOW && prev_status == PIN_IS_HIGH)
-	{
-	//a negative edge is assigned
-		edges = '-';	
+		
+		else if (Button_one_current_state == PIN_IS_LOW && Button_one_previous_state == PIN_IS_HIGH)
+		{
+				
+			// The last status was high and now is low so this is a negative edge
+			
+				Edge_Sign = 'n';	
 		}
+		
+		// This part for protection if there's no change on the button one pin
 		else
-		{	//not positive nor negative
-			edges = '.';
+		{	
+				Edge_Sign = '.';
 		}
-		// update the prev state to the current state
-		prev_status = B1_status;
 		
-		//send the corresponding data
-		xQueueOverwrite( q1 , &edges );
+		// Update the previous state of the Button1 with the current state
+		Button_one_previous_state = Button_one_current_state;
 		
-	  GPIO_write(PORT_1,PIN0,PIN_IS_LOW);
-		vTaskDelayUntil( &final_WT ,50);
-		GPIO_write(PORT_1,PIN0,PIN_IS_HIGH);
-		GPIO_write(PORT_1,PIN1,PIN_IS_LOW);
+		//Send data to the UART Recieve Task to print the Right string
 		
-		GPIO_write(PORT_1,PIN2,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN3,PIN_IS_LOW);
+		xQueueOverwrite( Q_1 , &Edge_Sign );
 		
-		GPIO_write(PORT_1,PIN4,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN5,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN6,PIN_IS_LOW);
+		
+		// This part for simulation to visulaize when this task come in the logic analyzer
+		GPIO_write(PORT_0,PIN0,PIN_IS_LOW);
+		vTaskDelayUntil( &Current_Tick ,50);
+		GPIO_write(PORT_0,PIN0,PIN_IS_HIGH);
+		
 	}
 }
+
+
+ /*
+ Task One --> Button_2_Monitor
+ 
+ The Functionality of this task is to catch any change on the Port0-Pin1 that refers to button two
+ 
+ and send data if any changes happend to the consumer task
+ 
+ */
 
 void Button_2_Monitor( void * pvParameters )
 {
-	pinState_t B2_status,prev_status = GPIO_read(PORT_0 , PIN1);
-	//get the tick count
-	TickType_t final_WT = xTaskGetTickCount();
-	signed char edges = 0;
+	pinState_t Button_two_current_state;
+	
+	pinState_t Button_two_previous_state = GPIO_read(PORT_0 , PIN1);
+	
+	TickType_t Current_Tick = xTaskGetTickCount();
+	
+	char Edge_Sign = 0;
+	
+	
 	for( ;; )
 	{
-		B2_status = GPIO_read(PORT_0 , PIN1);
-	if( B2_status == PIN_IS_HIGH && prev_status == PIN_IS_LOW)
+		//Get the Curent status of the pin0
+		Button_two_current_state = GPIO_read(PORT_0 , PIN1);
+		
+		if( Button_two_current_state == PIN_IS_HIGH && Button_two_previous_state == PIN_IS_LOW)
 		{
-		//a positive edge is assigned
-			edges = '+';
+	
+			// The last status was low and now is high so this is a positive edge
+			
+		   	Edge_Sign = 'p';
 		}
-	else if (B2_status == PIN_IS_LOW && prev_status == PIN_IS_HIGH)
+		
+		else if (Button_two_current_state == PIN_IS_LOW && Button_two_previous_state == PIN_IS_HIGH)
 		{
-	//a negative edge is assigned
-			edges = '-';
+				
+			// The last status was high and now is low so this is a negative edge
+			
+				Edge_Sign = 'n';	
 		}
+			
+		// This part for protection if there's no change on the button two pin
 		else
-		{
-	  //not positive nor negative
-		edges = '.';
+		{	
+				Edge_Sign = '.';
 		}
-	prev_status = B2_status;		
-		// update the prev state to the current state
-		//send the corresponding data
-		xQueueOverwrite( q2 , &edges ); 
 		
-		GPIO_write(PORT_1,PIN1,PIN_IS_LOW);
-		vTaskDelayUntil( &final_WT , 50);
+		// Update the previous state of the Button1 with the current state
+		Button_two_previous_state = Button_two_current_state;
 		
-		GPIO_write(PORT_1,PIN1,PIN_IS_HIGH);
+		//Send data to the UART Recieve Task to print the Right string
+		xQueueOverwrite( Q_2 , &Edge_Sign ); 
+		
+		
+		// This part for simulation to visulaize when this task come in the logic analyzer
+		GPIO_write(PORT_0,PIN1,PIN_IS_LOW);
+		vTaskDelayUntil( &Current_Tick , 50);
+		GPIO_write(PORT_0,PIN1,PIN_IS_HIGH);
 
-		GPIO_write(PORT_1,PIN0,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN2,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN3,PIN_IS_LOW);
+	}
+}
+
+ 
+ 
+ 
+ /*
+ Task Three --> Periodic Transmit
+ 
+ This Function Will send Peiodic string which is New_Period Every 100ms to the conumer task (UART Transc) 
+ 
+ */
+ void Periodic_Transmitter (void * pvParameters )
+{   
+	
+	TickType_t Current_Tick = xTaskGetTickCount();
+	
+	char String_s[] = "\nNew_Period.";
+	
+	int size = sizeof(String_s)/sizeof(String_s[0]);
+	int i =0;
+	
+	
+	for(;;)
+	{
+		for(i=0 ; i<size ; i++)
+		{	
+			xQueueSend(Q_3 , String_s+i ,100); 
+		}
 		
+		// This part for simulation to visulaize when this task come in the logic analyzer
+		GPIO_write(PORT_0,PIN2,PIN_IS_LOW);
+		vTaskDelayUntil( &Current_Tick , 100);
+		GPIO_write(PORT_0,PIN2,PIN_IS_HIGH);
 		
-		GPIO_write(PORT_1,PIN4,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN5,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN6,PIN_IS_LOW);
 	}
 }
 
 
+
+/*
+Task Four --> The Conusmer Task (UART Transciever)
+
+Thsi Functionnality of this task is to recieve the data from other task and diplay it on the screen 
+by using UART communication protocol 
+
+*/
+void Uart_Receiver (void * pvParameters )
+{   
+	uint8_t size = 15, i = 0;
+	char Button_one_edge, Button_two_edge;
 	
+	TickType_t Current_Tick = xTaskGetTickCount();
+	
+	char String_Recieved[15];
+	char Positive_Edge[]="\nPositive Edge Catched\n";
+	char Negative_Edge[]="\nNegative Edge Catched\n";
+	
+	for( ; ; )
+	{
+		// Check if the data is coming from Queue one which refers to Button one Task,
+		// and make sure that there's a chnage happend on the button one pin
+		if( (xQueueReceive(Q_1, &Button_one_edge , 0)) && (Button_one_edge != '.'))
+		{
+			switch(Button_one_edge)
+			{
+				// If the Recieved char is p, this means that a positive edge is detected in button one pin
+				case 'p': vSerialPutString((signed char *) Positive_Edge, strlen(Positive_Edge));
+									break;
+				// If the Recieved char is n, this means that a negtaive edge is detected in button one pin
+				case 'n':	vSerialPutString((signed char *) Negative_Edge, strlen(Negative_Edge));
+									break;	
+			}	
+		}
+		
+		
+		// Check if the data is coming from Queue Two which refers to Button Two Task,
+		// and make sure that there's a chnage happend on the button Two pin
+		if( (xQueueReceive(Q_2, &Button_two_edge , 0)) && (Button_two_edge != '.'))
+		{
+			switch(Button_two_edge)
+			{
+				// If the Recieved char is p, this means that a positive edge is detected in button two pin
+				case 'p': vSerialPutString((signed char *) Positive_Edge, strlen(Positive_Edge));
+									break;
+				// If the Recieved char is n, this means that a negtaive edge is detected in button two pin
+				case 'n':	vSerialPutString((signed char *) Negative_Edge, strlen(Negative_Edge));
+									break;
+			}		
+		}
+		
+		// Here, we recieve the data that is coming from the Periodic Transmit Task Every 100ms
+		if( uxQueueMessagesWaiting(Q_3) >0)
+		{
+			for(i=0 ; i<size ; i++)
+			{
+				xQueueReceive( Q_3, (String_Recieved+i) , 0);
+			}
+			vSerialPutString( (signed char *) String_Recieved, strlen(String_Recieved));
+			xQueueReset(Q_3);
+		}
+			
+
+		// This part for simulation to visulaize when this task come in the logic analyzer
+		GPIO_write(PORT_0,PIN3,PIN_IS_LOW);
+		vTaskDelayUntil( &Current_Tick , 20);
+		GPIO_write(PORT_0,PIN3,PIN_IS_HIGH);
+	}
+}
 
 
-
-
+ /*
+ Task Five --> Load_1_Simulation
+ 
+ The Functionality of this task is to make load on the cpu to see if this will cause CPU load or not
+ 
+ */
 void Load_1_Simulation ( void * pvParameters )
 {
 	uint32_t i = 0;
-	//get the tick count
-	TickType_t final_WT = xTaskGetTickCount();
+	TickType_t Current_Tick = xTaskGetTickCount();
 
 	for( ; ; )
-	{ //using 7 ms of total delay
-	for( i=0 ; i <= 12000*7; i++);
+	{
+		// We use 12Mhz CPU so 12000 is equal to 1ms ,, we need 5ms so we need 5 x 12000 counts 
 		
-		GPIO_write(PORT_1,PIN5,PIN_IS_LOW);
-		vTaskDelayUntil( &final_WT , 20);
-		GPIO_write(PORT_1,PIN5,PIN_IS_HIGH);
-		GPIO_write(PORT_1,PIN0,PIN_IS_LOW);
+		for( i=0 ; i <= 12000*5; i++);
 		
-		GPIO_write(PORT_1,PIN1,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN2,PIN_IS_LOW);
+		// This part for simulation to visulaize when this task come in the logic analyzer
+		GPIO_write(PORT_0,PIN5,PIN_IS_LOW);
+		vTaskDelayUntil( &Current_Tick , 20);
+		GPIO_write(PORT_0,PIN5,PIN_IS_HIGH);
 		
-		GPIO_write(PORT_1,PIN4,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN3,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN6,PIN_IS_LOW);
 	}
 }
 
+
+ /*
+ Task Five --> Load_2_Simulation
+ 
+ The Functionality of this task is to make load on the cpu to see if this will cause CPU load or not
+ 
+ */
 void Load_2_Simulation ( void * pvParameters )
 {
 	uint32_t i = 0;
-		//get the tick count
-	TickType_t final_WT = xTaskGetTickCount();
+	
+	TickType_t Current_Tick = xTaskGetTickCount();
 	for( ; ; )
-	{	//using 13 ms of total delay
-	for( i=0 ; i <= 12000*12; i++);
+	{
+		// We use 12Mhz CPU so 12000 is equal to 1ms ,, we need 12ms so we need 12 x 12000 counts
+		for( i=0 ; i <= 12000*12; i++);
 
-		GPIO_write(PORT_1,PIN6,PIN_IS_LOW);
-		vTaskDelayUntil( &final_WT , 100);
+		// This part for simulation to visulaize when this task come in the logic analyzer
+		GPIO_write(PORT_0,PIN6,PIN_IS_LOW);
+		vTaskDelayUntil( &Current_Tick , 100);
+		GPIO_write(PORT_0,PIN6,PIN_IS_HIGH);
 		
-		GPIO_write(PORT_1,PIN6,PIN_IS_HIGH);
-		GPIO_write(PORT_1,PIN0,PIN_IS_LOW);
-		
-		GPIO_write(PORT_1,PIN1,PIN_IS_LOW);
-		
-		GPIO_write(PORT_1,PIN2,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN4,PIN_IS_LOW);
-		GPIO_write(PORT_1,PIN3,PIN_IS_LOW);
-			
-		GPIO_write(PORT_1,PIN5,PIN_IS_LOW);
 	}
 }
  
@@ -364,80 +311,36 @@ int main( void )
 {
 	/*Hardware setup */
 	prvSetupHardware();
-  // assigning each queue to a xcreated queue
-	q1 = xQueueCreate( 1, sizeof(char) );
-	q2 = xQueueCreate( 1, sizeof(char) );
-	q3 = xQueueCreate( 15, sizeof(char) );
+ 
+  // Here we create three Queues to put in them the data that sent from Task1, Task2 and Task3 to the conumer task
+	Q_1 = xQueueCreate( 1, sizeof(char) );
+	Q_2 = xQueueCreate( 1, sizeof(char) );
+	Q_3 = xQueueCreate( 15, sizeof(char) );
+	
     /* Create Tasks here */  
 	
-	xTaskPeriodicCreate(
-                    Button_1_Monitor,       /* Function that implements the task. */
-                    "first",     /* Text name for the task. */
-                    100,      				/* Stack size in words, not bytes. */
-                    ( void * ) 0,    		/* Parameter passed into the task. */
-                    1,						/* Priority at which the task is created. */
-                    &B1_taskHandler,		/* Used to pass out the created task's handle. */
-										50);      				/* Task Deadline */
+	xTaskPeriodicCreate(Button_1_Monitor, "Button1", 100, ( void * ) 0, 1, &B1_taskHandler,	BUTTON_ONE_PERIOD);      	
 					
-	xTaskPeriodicCreate(
-                    Button_2_Monitor,       /* Function that implements the task. */
-                    "second",     /* Text name for the task. */
-                    100,      				/* Stack size in words, not bytes. */
-                    ( void * ) 0,    		/* Parameter passed into the task. */
-                    1,						/* Priority at which the task is created. */
-                    &B2_taskHandler,		/* Used to pass out the created task's handle. */
-										50);      				/* Task Deadline */
+	xTaskPeriodicCreate(Button_2_Monitor, "Button2", 100, ( void * ) 0, 1,	&B2_taskHandler, BUTTON_TWO_PERIOD);      				
 										
-	xTaskPeriodicCreate(
-                    Periodic_Transmitter,       /* Function that implements the task. */
-                    "Trans",     /* Text name for the task. */
-                    100,      				/* Stack size in words, not bytes. */
-                    ( void * ) 0,    		/* Parameter passed into the task. */
-                    1,						/* Priority at which the task is created. */
-                    &Trans_TaskHandler,		/* Used to pass out the created task's handle. */
-										100);  
+	xTaskPeriodicCreate(Periodic_Transmitter, "Uart_Trans", 100, ( void * ) 0, 1, &Trans_TaskHandler, UART_TRANSC_PERIOD);  
 										
-	xTaskPeriodicCreate(
-                    Uart_Receiver,       /* Function that implements the task. */
-                    "Recv",     /* Text name for the task. */
-                    100,      				/* Stack size in words, not bytes. */
-                    ( void * ) 0,    		/* Parameter passed into the task. */
-                    1,						/* Priority at which the task is created. */
-                    &Receiv_TaskHandler,		/* Used to pass out the created task's handle. */
-										20);      				/* Task Deadline */
+	xTaskPeriodicCreate(Uart_Receiver, "Peroidic_Transmit", 100, ( void * ) 0, 1, &Receiv_TaskHandler,	PERIODC_TRANSMIT_PERIOD);      				
+
+	xTaskPeriodicCreate(Load_1_Simulation,  "Load_one", 100, ( void * ) 0, 1, &L1_TaskHandler, LOAD_ONE_PERIOD);      				
+																		
+	xTaskPeriodicCreate(Load_2_Simulation, "Load_two", 100, ( void * ) 0, 1, &L2_TaskHandler, LOAD_TWO_PERIOD); 
+										
 
 
-	xTaskPeriodicCreate(
-                    Load_1_Simulation,       /* Function that implements the task. */
-                    "load1",     /* Text name for the task. */
-                    100,      				/* Stack size in words, not bytes. */
-                    ( void * ) 0,    		/* Parameter passed into the task. */
-                    1,						/* Priority at which the task is created. */
-                    &L1_TaskHandler,		/* Used to pass out the created task's handle. */
-										10);      				/* Task Deadline */
-										
-										
-	xTaskPeriodicCreate(
-                    Load_2_Simulation,       /* Function that implements the task. */
-                    "load2",     /* Text name for the task. */
-                    100,      				/* Stack size in words, not bytes. */
-                    ( void * ) 0,    		/* Parameter passed into the task. */
-                    1,						/* Priority at which the task is created. */
-                    &L2_TaskHandler,		/* Used to pass out the created task's handle. */
-										100); 
-										
-										/* Task Deadline */	
-	/* Now all the tasks have been started - start the scheduler.
-	NOTE : Tasks run in system mode and the scheduler runs in Supervisor mode.
-	The processor MUST be in supervisor mode when vTaskStartScheduler is 
-	called.  The demo applications included in the FreeRTOS.org download switch
-	to supervisor mode prior to main being called.  If you are not using one of
-	these demo application projects then ensure Supervisor mode is used here. */
+
 	vTaskStartScheduler();
 	/* Should never reach here!  If you do then there was not enough heap
 	available for the idle task to be created. */
 	for( ;; );
 }
+
+
 /*-----------------------------------------------------------*/
 
 void vApplicationTickHook (void)
