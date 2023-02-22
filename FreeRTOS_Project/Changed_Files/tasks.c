@@ -194,6 +194,12 @@
 
 #endif /* configUSE_PORT_OPTIMISED_TASK_SELECTION */
 
+#if ( configUSE_EDF_SCHEDULER == 1 )
+
+		PRIVILEGED_DATA static List_t xReadyTasksListEDF;
+		
+#endif
+		
 /*-----------------------------------------------------------*/
 
 /* pxDelayedTaskList and pxOverflowDelayedTaskList are switched when the tick
@@ -216,22 +222,21 @@
 
 /*
  * Place the task represented by pxTCB into the appropriate ready list for
- * the task. 
- * It is inserted at the end of the list.
+ * the task.  It is inserted at the end of the list.
  */
-#if configUSE_EDF_SCHEDULER == 1
-		
-	#define prvAddTaskToReadyList( pxTCB ) /*xGenericListIteam must contain the deadline value */ \
-	traceMOVED_TASK_TO_READY_STATE(pxTCB);														\
-	vListInsert( &(xReadyTasksListEDF), &( ( pxTCB )->xStateListItem ) );		
+#if ( configUSE_EDF_SCHEDULER == 0 )
+		#define prvAddTaskToReadyList( pxTCB )                                                             \
+    traceMOVED_TASK_TO_READY_STATE( pxTCB );                                                           \
+    taskRECORD_READY_PRIORITY( ( pxTCB )->uxPriority );                                                \
+    listINSERT_END( &( pxReadyTasksLists[ ( pxTCB )->uxPriority ] ), &( ( pxTCB )->xStateListItem ) ); \
+    tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )
 #else
-		
-	#define prvAddTaskToReadyList( pxTCB )                                                                 \
-			traceMOVED_TASK_TO_READY_STATE( pxTCB );                                                           \
-			taskRECORD_READY_PRIORITY( ( pxTCB )->uxPriority );                                                \
-			listINSERT_END( &( pxReadyTasksLists[ ( pxTCB )->uxPriority ] ), &( ( pxTCB )->xStateListItem ) ); \
-			tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )		
+		#define prvAddTaskToReadyList( pxTCB )                                                             \
+		traceMOVED_TASK_TO_READY_STATE( pxTCB );                                                           \
+		vListInsert( &(xReadyTasksListEDF), &( ( pxTCB )->xStateListItem ) );  												   	 \
+		tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )
 #endif
+		
 /*-----------------------------------------------------------*/
 
 /*
@@ -268,13 +273,13 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     #if ( portUSING_MPU_WRAPPERS == 1 )
         xMPU_SETTINGS xMPUSettings; /*< The MPU settings are defined as part of the port layer.  THIS MUST BE THE SECOND MEMBER OF THE TCB STRUCT. */
     #endif
-
+	
     ListItem_t xStateListItem;                  /*< The list that the state list item of a task is reference from denotes the state of that task (Ready, Blocked, Suspended ). */
     ListItem_t xEventListItem;                  /*< Used to reference a task from an event list. */
     UBaseType_t uxPriority;                     /*< The priority of the task.  0 is the lowest priority. */
     StackType_t * pxStack;                      /*< Points to the start of the stack. */
     char pcTaskName[ configMAX_TASK_NAME_LEN ]; /*< Descriptive name given to the task when created.  Facilitates debugging only. */ /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
-
+	
     #if ( ( portSTACK_GROWTH > 0 ) || ( configRECORD_STACK_HIGH_ADDRESS == 1 ) )
         StackType_t * pxEndOfStack; /*< Points to the highest valid address for the stack. */
     #endif
@@ -338,9 +343,9 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iTaskErrno;
     #endif
-		/* E.C. : the period of a task */
+		
 		#if ( configUSE_EDF_SCHEDULER == 1 )
-			TickType_t xTaskPeriod;  /*< Stores the period in tick of the task. > */
+				TickType_t xTaskPeriod; /*< Stores the period in tick of the task. > */
 		#endif
 } tskTCB;
 
@@ -362,11 +367,6 @@ PRIVILEGED_DATA static List_t xDelayedTaskList2;                         /*< Del
 PRIVILEGED_DATA static List_t * volatile pxDelayedTaskList;              /*< Points to the delayed task list currently being used. */
 PRIVILEGED_DATA static List_t * volatile pxOverflowDelayedTaskList;      /*< Points to the delayed task list currently being used to hold tasks that have overflowed the current tick count. */
 PRIVILEGED_DATA static List_t xPendingReadyList;                         /*< Tasks that have been readied while the scheduler was suspended.  They will be moved to the ready list when the scheduler is resumed. */
-
-/* E.C. : the new RedyList */
-#if ( configUSE_EDF_SCHEDULER == 1 )
-	PRIVILEGED_DATA static List_t xReadyTasksListEDF; /*<  Ready tasks ordered by their deadline.> */
-#endif
 
 #if ( INCLUDE_vTaskDelete == 1 )
 
@@ -567,7 +567,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                                   UBaseType_t uxPriority,
                                   TaskHandle_t * const pxCreatedTask,
                                   TCB_t * pxNewTCB,
-                                  const MemoryRegion_t * const xRegions ) PRIVILEGED_FUNCTION;
+                                  const MemoryRegion_t * const xRegions) PRIVILEGED_FUNCTION;
 
 /*
  * Called after a new task has been created and initialised to place the task
@@ -749,10 +749,13 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
                             void * const pvParameters,
                             UBaseType_t uxPriority,
                             TaskHandle_t * const pxCreatedTask )
+															
+		
     {
         TCB_t * pxNewTCB;
+			  
         BaseType_t xReturn;
-
+				
         /* If the stack grows down then allocate the stack then the TCB so the stack
          * does not grow into the TCB.  Likewise if the stack grows up then allocate
          * the TCB then the stack. */
@@ -827,25 +830,21 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
         {
             xReturn = errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
         }
-
         return xReturn;
     }
-
-#endif /* configSUPPORT_DYNAMIC_ALLOCATION */
-
+			#if (configUSE_EDF_SCHEDULER == 1 )
+						BaseType_t xTaskPeriodicCreate(	TaskFunction_t pxTaskCode,
+																						const char * const pcName,		/*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+																						const configSTACK_DEPTH_TYPE usStackDepth,
+																						void * const pvParameters,
+																						UBaseType_t uxPriority,
+																						TaskHandle_t * const pxCreatedTask,
+																						TickType_t Period )
+															
 		
-/* E.C.   */
-#if ( configUSE_EDF_SCHEDULER == 1 )
-
-    BaseType_t xTaskPeriodicCreate( TaskFunction_t pxTaskCode,
-                            const char * const pcName, 
-                            const configSTACK_DEPTH_TYPE usStackDepth,
-                            void * const pvParameters,
-                            UBaseType_t uxPriority,
-                            TaskHandle_t * const pxCreatedTask,
-														TickType_t period )
     {
         TCB_t * pxNewTCB;
+			  
         BaseType_t xReturn;
 
         /* If the stack grows down then allocate the stack then the TCB so the stack
@@ -875,28 +874,26 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
             }
         #else /* portSTACK_GROWTH */
             {
-							
-                StackType_t * stack;
+                StackType_t * pxStack;
 
-                /* Allocate space for the stack*/
-							
-                stack = pvPortMallocStack( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
+                /* Allocate space for the stack used by the task being created. */
+                pxStack = pvPortMallocStack( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
 
-                if( stack != NULL )
+                if( pxStack != NULL )
                 {
                     /* Allocate space for the TCB. */
                     pxNewTCB = ( TCB_t * ) pvPortMalloc( sizeof( TCB_t ) ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
 
                     if( pxNewTCB != NULL )
                     {
-                        /* Store the stack in the TCB*/
-                        pxNewTCB->pxStack = stack;
+                        /* Store the stack location in the TCB. */
+                        pxNewTCB->pxStack = pxStack;
                     }
                     else
                     {
-											
-                        /* Free it again as The stack cannot be used as the TCB was not created. */
-                        vPortFreeStack( stack );
+                        /* The stack cannot be used as the TCB was not created.  Free
+                         * it again. */
+                        vPortFreeStack( pxStack );
                     }
                 }
                 else
@@ -915,28 +912,21 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
                     pxNewTCB->ucStaticallyAllocated = tskDYNAMICALLY_ALLOCATED_STACK_AND_TCB;
                 }
             #endif /* tskSTATIC_AND_DYNAMIC_ALLOCATION_POSSIBLE */
-
+								
+						pxNewTCB ->xTaskPeriod = Period;
             prvInitialiseNewTask( pxTaskCode, pcName, ( uint32_t ) usStackDepth, pvParameters, uxPriority, pxCreatedTask, pxNewTCB, NULL );
-        
-					
-						/*E.C. : initialize the period */
-						pxNewTCB->xTaskPeriod = period;
-						/*E.C. : insert the period value in the generic list iteam before to add the task 
-								in RL: */
-						listSET_LIST_ITEM_VALUE( &( ( pxNewTCB )->xStateListItem ), ( pxNewTCB )->xTaskPeriod + xTaskGetTickCount() );	
+            listSET_LIST_ITEM_VALUE( &( ( pxNewTCB )->xStateListItem ), ( pxNewTCB)->xTaskPeriod + xTaskGetTickCount());
 						
 						prvAddNewTaskToReadyList( pxNewTCB );
-									
-						xReturn = pdPASS;
+            xReturn = pdPASS;
         }
         else
         {
             xReturn = errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
         }
-
         return xReturn;
     }
-
+	#endif
 #endif /* configSUPPORT_DYNAMIC_ALLOCATION */
 /*-----------------------------------------------------------*/
 
@@ -947,10 +937,11 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                                   UBaseType_t uxPriority,
                                   TaskHandle_t * const pxCreatedTask,
                                   TCB_t * pxNewTCB,
-                                  const MemoryRegion_t * const xRegions )
+                                  const MemoryRegion_t * const xRegions)
 {
     StackType_t * pxTopOfStack;
     UBaseType_t x;
+//		TickType_t currentTick;
 
     #if ( portUSING_MPU_WRAPPERS == 1 )
         /* Should the task be created in privileged mode? */
@@ -1039,7 +1030,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
         pxNewTCB->pcTaskName[ 0 ] = 0x00;
     }
 
-    /* This is used as an array i so must ensure it's not too large. */
+    /* This is used as an array index so must ensure it's not too large. */
     configASSERT( uxPriority < configMAX_PRIORITIES );
 
     if( uxPriority >= ( UBaseType_t ) configMAX_PRIORITIES )
@@ -1066,9 +1057,12 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
      * back to  the containing TCB from a generic item in a list. */
     listSET_LIST_ITEM_OWNER( &( pxNewTCB->xStateListItem ), pxNewTCB );
 
+		
     /* Event lists are always in priority order. */
     listSET_LIST_ITEM_VALUE( &( pxNewTCB->xEventListItem ), ( TickType_t ) configMAX_PRIORITIES - ( TickType_t ) uxPriority ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
     listSET_LIST_ITEM_OWNER( &( pxNewTCB->xEventListItem ), pxNewTCB );
+//		currentTick = xTaskGetTickCount();
+		listSET_LIST_ITEM_VALUE( &( ( pxNewTCB )->xStateListItem ), ( pxNewTCB )->xTaskPeriod +  xTaskGetTickCount());
 
     #if ( portCRITICAL_NESTING_IN_TCB == 1 )
         {
@@ -2117,7 +2111,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #endif /* ( ( INCLUDE_xTaskResumeFromISR == 1 ) && ( INCLUDE_vTaskSuspend == 1 ) ) */
 /*-----------------------------------------------------------*/
-		
+
 void vTaskStartScheduler( void )
 {
     BaseType_t xReturn;
@@ -2149,29 +2143,33 @@ void vTaskStartScheduler( void )
                 xReturn = pdFAIL;
             }
         }
-    #else /* if ( configSUPPORT_STATIC_ALLOCATION == 0 ) */
-        {
-			/*E.C. : */
-			#if (configUSE_EDF_SCHEDULER == 1)
-			{
-				TickType_t initIDLEPeriod = 200; /*it was 100 */
-				xReturn = xTaskPeriodicCreate( 	prvIdleTask,"IDLE",configMINIMAL_STACK_SIZE, 
-												(void * ) NULL, portPRIVILEGE_BIT,&xIdleTaskHandle,
-												initIDLEPeriod );
-			}
-			#else
-			{
-				/* The Idle task is being created using dynamically allocated RAM. */
-				xReturn = xTaskCreate( prvIdleTask,
-									   configIDLE_TASK_NAME,
-									   configMINIMAL_STACK_SIZE,
-									   ( void * ) NULL,
-									   portPRIVILEGE_BIT,  /* In effect ( tskIDLE_PRIORITY | portPRIVILEGE_BIT ), but tskIDLE_PRIORITY is zero. */
-									   &xIdleTaskHandle ); /*lint !e961 MISRA exception, justified as it is not a redundant explicit cast to all supported compilers. */
-			}
-			#endif
+  #else /* if ( configSUPPORT_STATIC_ALLOCATION == 1 ) */
+		{
+        #if ( configUSE_EDF_SCHEDULER == 1 )
+				{
+					TickType_t initIDLEPeriod = 100;
+					
+             xReturn = xTaskPeriodicCreate(  prvIdleTask,
+																						 configIDLE_TASK_NAME,
+																						 configMINIMAL_STACK_SIZE,
+																						 ( void * ) NULL,
+																						 portPRIVILEGE_BIT,  /* In effect ( tskIDLE_PRIORITY | portPRIVILEGE_BIT ), but tskIDLE_PRIORITY is zero. */
+																						 &xIdleTaskHandle,
+																						 initIDLEPeriod ); /*lint !e961 MISRA exception, justified as it is not a redundant explicit cast to all supported compilers. */
+        }
+			  #else
+				{
+					/* The Idle task is being created using dynamically allocated RAM. */
+            xReturn = xTaskCreate( prvIdleTask,
+                                   configIDLE_TASK_NAME,
+                                   configMINIMAL_STACK_SIZE,
+                                   ( void * ) NULL,
+                                   portPRIVILEGE_BIT,  /* In effect ( tskIDLE_PRIORITY | portPRIVILEGE_BIT ), but tskIDLE_PRIORITY is zero. */
+                                   &xIdleTaskHandle ); /*lint !e961 MISRA exception, justified as it is not a redundant explicit cast to all supported compilers. */
+			 }
+			 #endif /* EDF Scheduler */
 		}
-    #endif /* configSUPPORT_STATIC_ALLOCATION */
+		#endif /* configSUPPORT_STATIC_ALLOCATION */
 
     #if ( configUSE_TIMERS == 1 )
         {
@@ -2185,6 +2183,7 @@ void vTaskStartScheduler( void )
             }
         }
     #endif /* configUSE_TIMERS */
+
     if( xReturn == pdPASS )
     {
         /* freertos_tasks_c_additions_init() should only be called if the user
@@ -2215,7 +2214,7 @@ void vTaskStartScheduler( void )
 
         xNextTaskUnblockTime = portMAX_DELAY;
         xSchedulerRunning = pdTRUE;
-       xTickCount = ( TickType_t ) configINITIAL_TICK_COUNT;
+        xTickCount = ( TickType_t ) configINITIAL_TICK_COUNT;
 
         /* If configGENERATE_RUN_TIME_STATS is defined then the following
          * macro must be defined to configure the timer/counter used to generate
@@ -2669,13 +2668,21 @@ char * pcTaskGetName( TaskHandle_t xTaskToQuery ) /*lint !e971 Unqualified char 
                                       const UBaseType_t uxArraySize,
                                       configRUN_TIME_COUNTER_TYPE * const pulTotalRunTime )
     {
-        UBaseType_t uxTask = 0, uxQueue = configMAX_PRIORITIES;
+        UBaseType_t uxTask = 0;
+
+		#if ( configUSE_EDF_SCHEDULER == 0 )
+			
+				uxQueue = configMAX_PRIORITIES;
+			
+		#endif
+			
 
         vTaskSuspendAll();
         {
             /* Is there a space in the array for each task in the system? */
             if( uxArraySize >= uxCurrentNumberOfTasks )
             {
+							#if ( configUSE_EDF_SCHEDULER == 0 )
                 /* Fill in an TaskStatus_t structure with information on each
                  * task in the Ready state. */
                 do
@@ -2683,7 +2690,9 @@ char * pcTaskGetName( TaskHandle_t xTaskToQuery ) /*lint !e971 Unqualified char 
                     uxQueue--;
                     uxTask += prvListTasksWithinSingleList( &( pxTaskStatusArray[ uxTask ] ), &( pxReadyTasksLists[ uxQueue ] ), eReady );
                 } while( uxQueue > ( UBaseType_t ) tskIDLE_PRIORITY ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
-
+							#else
+								uxTask += prvListTasksWithinSingleList( &( pxTaskStatusArray[ uxTask ] ), &xReadyTasksListEDF, eReady );
+							#endif
                 /* Fill in an TaskStatus_t structure with information on each
                  * task in the Blocked state. */
                 uxTask += prvListTasksWithinSingleList( &( pxTaskStatusArray[ uxTask ] ), ( List_t * ) pxDelayedTaskList, eBlocked );
@@ -2873,7 +2882,6 @@ BaseType_t xTaskIncrementTick( void )
     TCB_t * pxTCB;
     TickType_t xItemValue;
     BaseType_t xSwitchRequired = pdFALSE;
-	
 
     /* Called by the portable layer each time a tick interrupt occurs.
      * Increments the tick then checks to see if the new tick value will cause any
@@ -2955,20 +2963,15 @@ BaseType_t xTaskIncrementTick( void )
                         mtCOVERAGE_TEST_MARKER();
                     }
 
-					// Compute new deadline
-					#if (configUSE_EDF_SCHEDULER == 1)
-						listSET_LIST_ITEM_VALUE(  &( ( pxTCB )->xStateListItem ), ( pxTCB)->xTaskPeriod + xTaskGetTickCount() );
-					#endif		
-						// add it to the ready list
-						prvAddTaskToReadyList( pxTCB );
-					//perform context switching
-					#if (configUSE_EDF_SCHEDULER == 1)
-						xSwitchRequired =  pdTRUE;
-					#endif
+                    /* Place the unblocked task into the appropriate ready
+                     * list. */
+                    prvAddTaskToReadyList( pxTCB );
+
                     /* A task being unblocked cannot cause an immediate
                      * context switch if preemption is turned off. */
                     #if ( configUSE_PREEMPTION == 1 )
                         {
+													#if ( configUSE_EDF_SCHEDULER == 0 )
                             /* Preemption is on, but a context switch should
                              * only be performed if the unblocked task has a
                              * priority that is equal to or higher than the
@@ -2981,6 +2984,29 @@ BaseType_t xTaskIncrementTick( void )
                             {
                                 mtCOVERAGE_TEST_MARKER();
                             }
+												  #endif
+														#if (configUSE_EDF_SCHEDULER == 1)
+														{
+														listSET_LIST_ITEM_VALUE ( &( ( pxTCB )->xStateListItem ), ( pxTCB )->xTaskPeriod + xTaskGetTickCount());
+														
+														listSET_LIST_ITEM_VALUE ( &( ( xIdleTaskHandle )->xStateListItem ), ( xIdleTaskHandle )->xTaskPeriod + xTickCount);
+														
+//															/* Calculating the new task deadline */
+//														listSET_LIST_ITEM_VALUE( &( ( pxTCB )->xStateListItem ), ( pxTCB)->xTaskPeriod + xTickCount);
+//												
+//														/* Updating the IDLE task deadline */
+//														listSET_LIST_ITEM_VALUE( &( ( xIdleTaskHandle )->xStateListItem ), ( xIdleTaskHandle)->xTaskPeriod + xTickCount);
+															
+														if ( pxTCB ->xStateListItem.xItemValue < pxCurrentTCB ->xStateListItem.xItemValue )
+														{
+																xSwitchRequired = pdTRUE;
+														}
+														else
+														{
+                                mtCOVERAGE_TEST_MARKER();
+                            }
+													}
+														#endif
                         }
                     #endif /* configUSE_PREEMPTION */
                 }
@@ -3213,21 +3239,18 @@ void vTaskSwitchContext( void )
 
         /* Select a new task to run using either the generic C or port
          * optimised asm code. */
-        /* E.C. */
-		#if (configUSE_EDF_SCHEDULER == 1)
-		{
-			pxCurrentTCB = (TCB_t * ) listGET_OWNER_OF_HEAD_ENTRY( &(xReadyTasksListEDF ) );
-			traceTASK_SWITCHED_IN();
-			
-		}
-		#else
-		{
-			taskSELECT_HIGHEST_PRIORITY_TASK(); /*lint !e9079 void * is used as this macro is used with timers and co-routines too.  Alignment is known to be fine as the type of the pointer stored and retrieved is the same. */
-			traceTASK_SWITCHED_IN();	
-		}
-		#endif
-        
-		/* After the new task is switched in, update the global errno. */
+        #if ( configUSE_EDF_SCHEDULER == 0)
+						{
+						taskSELECT_HIGHEST_PRIORITY_TASK(); /*lint !e9079 void * is used as this macro is used with timers and co-routines too.  Alignment is known to be fine as the type of the pointer stored and retrieved is the same. */
+						}
+				#else
+						{
+						pxCurrentTCB = (TCB_t *) listGET_OWNER_OF_HEAD_ENTRY ( &(xReadyTasksListEDF) );
+						}
+				#endif
+        traceTASK_SWITCHED_IN();
+
+        /* After the new task is switched in, update the global errno. */
         #if ( configUSE_POSIX_ERRNO == 1 )
             {
                 FreeRTOS_errno = pxCurrentTCB->iTaskErrno;
@@ -3243,6 +3266,16 @@ void vTaskSwitchContext( void )
                 _impure_ptr = &( pxCurrentTCB->xNewLib_reent );
             }
         #endif /* configUSE_NEWLIB_REENTRANT */
+						
+				#if (configUSE_EDF_SCHEDULER == 0)
+						{
+							taskSELECT_HIGHEST_PRIORITY_TASK();
+						}
+				#else
+						{
+							pxCurrentTCB = (TCB_t *) listGET_OWNER_OF_HEAD_ENTRY( &(xReadyTasksListEDF ) );
+						}
+				#endif
     }
 }
 /*-----------------------------------------------------------*/
@@ -3493,7 +3526,7 @@ BaseType_t xTaskCheckForTimeOut( TimeOut_t * const pxTimeOut,
                 xReturn = pdTRUE;
             }
             else
-        #endif
+        #endif 
 
         #if ( INCLUDE_vTaskSuspend == 1 )
             if( *pxTicksToWait == portMAX_DELAY )
@@ -3595,6 +3628,7 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
 {
     /* Stop warnings. */
     ( void ) pvParameters;
+
     /** THIS IS THE RTOS IDLE TASK - WHICH IS CREATED AUTOMATICALLY WHEN THE
      * SCHEDULER IS STARTED. **/
 
@@ -3602,18 +3636,10 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
      * the idle task is responsible for deleting the task's secure context, if
      * any. */
     portALLOCATE_SECURE_CONTEXT( configMINIMAL_SECURE_STACK_SIZE );
-	
+
     for( ; ; )
     {
-		#if( configUSE_EDF_SCHEDULER == 1)
-		{
-			/*E.C. make  the idle taske have the least priority */
-			listSET_LIST_ITEM_VALUE( &( ( pxCurrentTCB )->xStateListItem ), ( pxCurrentTCB )->xTaskPeriod + xTaskGetTickCount() );
-			
-			listINSERT_END( &(xReadyTasksListEDF), &( ( pxCurrentTCB )->xStateListItem ) );
-		}
-		#endif
-			/* See if any tasks have deleted themselves - if so then the idle task
+        /* See if any tasks have deleted themselves - if so then the idle task
          * is responsible for freeing the deleted task's TCB and stack. */
         prvCheckTasksWaitingTermination();
 
@@ -3638,14 +3664,31 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
                  * the list, and an occasional incorrect value will not matter.  If
                  * the ready list at the idle priority contains more than one task
                  * then a task other than the idle task is ready to execute. */
-                if( listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ tskIDLE_PRIORITY ] ) ) > ( UBaseType_t ) 1 )
+              #if (configUSE_EDF_SCHEDULER == 0 )  
+							
+								if( listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ tskIDLE_PRIORITY ] ) ) > ( UBaseType_t ) 1 )
                 {
                     taskYIELD();
                 }
-                else
+							#endif
+                
+								
+				#if (configUSE_EDF_SCHEDULER == 1 )
+								TCB_t *pxTCB;
+								pxTCB = prvGetTCBFromHandle(NULL);
+								
+								listSET_LIST_ITEM_VALUE( &( ( pxTCB )->xStateListItem ), ( pxTCB )->xTaskPeriod + xTaskGetTickCount());
+								
+								if ( listCURRENT_LIST_LENGTH( &( xReadyTasksListEDF)) > (UBaseType_t) 1 )
+								{
+										taskYIELD();
+								}
+				#endif
+								else
                 {
                     mtCOVERAGE_TEST_MARKER();
                 }
+								
             }
         #endif /* ( ( configUSE_PREEMPTION == 1 ) && ( configIDLE_SHOULD_YIELD == 1 ) ) */
 
@@ -3836,14 +3879,12 @@ static void prvInitialiseTaskLists( void )
     vListInitialise( &xDelayedTaskList2 );
     vListInitialise( &xPendingReadyList );
 		
-		
+		#if ( configUSE_EDF_SCHEDULER == 1 )
+				{
+						vListInitialise( &xReadyTasksListEDF );
+				}
+		#endif
 
-	#if ( configUSE_EDF_SCHEDULER == 1 )
-	{
-		
-		vListInitialise(  &xReadyTasksListEDF );
-	}
-	#endif
     #if ( INCLUDE_vTaskDelete == 1 )
         {
             vListInitialise( &xTasksWaitingTermination );
@@ -4645,7 +4686,7 @@ static void prvResetNextTaskUnblockTime( void )
          * function is executing. */
         uxArraySize = uxCurrentNumberOfTasks;
 
-        /* Allocate an array i for each task.  NOTE!  if
+        /* Allocate an array index for each task.  NOTE!  if
          * configSUPPORT_DYNAMIC_ALLOCATION is set to 0 then pvPortMalloc() will
          * equate to NULL. */
         pxTaskStatusArray = pvPortMalloc( uxCurrentNumberOfTasks * sizeof( TaskStatus_t ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation allocates a struct that has the alignment requirements of a pointer. */
@@ -4755,7 +4796,7 @@ static void prvResetNextTaskUnblockTime( void )
          * function is executing. */
         uxArraySize = uxCurrentNumberOfTasks;
 
-        /* Allocate an array i for each task.  NOTE!  If
+        /* Allocate an array index for each task.  NOTE!  If
          * configSUPPORT_DYNAMIC_ALLOCATION is set to 0 then pvPortMalloc() will
          * equate to NULL. */
         pxTaskStatusArray = pvPortMalloc( uxCurrentNumberOfTasks * sizeof( TaskStatus_t ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation allocates a struct that has the alignment requirements of a pointer. */

@@ -93,22 +93,22 @@ to exclude the API function. */
 #define portGET_RUN_TIME_COUNTER_VALUE()	(T1TC)
   
 	
-#define traceTASK_SWITCHED_IN()			 	if (strcmp( TASK_NAME, "first" ) == 0 ){GPIO_write( PORT_0 , PIN2 , PIN_IS_HIGH) ; _1st_button = T1TC;}  	\
-																			if (strcmp( TASK_NAME, "second" ) == 0 ){GPIO_write( PORT_0 , PIN3 , PIN_IS_HIGH) ; _2nd_button = T1TC;}  	\
-																			if (strcmp( TASK_NAME, "Trans" ) == 0 ){GPIO_write( PORT_0 , PIN4 , PIN_IS_HIGH) ; Transmit_UART = T1TC;}  	\
-																			if (strcmp( TASK_NAME, "Recv" ) == 0 ){GPIO_write( PORT_0 , PIN5 , PIN_IS_HIGH) ; Receiv_UART = T1TC;}  	\
-																			if (strcmp( TASK_NAME, "load1" ) == 0 ){GPIO_write( PORT_0 , PIN6 , PIN_IS_HIGH) ; _1st_load = T1TC;}  	\
-																			if (strcmp( TASK_NAME, "load2" ) == 0 ){GPIO_write( PORT_0 , PIN7 , PIN_IS_HIGH) ; _2nd_load = T1TC;}  	\
+#define traceTASK_SWITCHED_IN()			 	if (strcmp( TASK_NAME, "Button_1_Monitor" ) == 0 ){GPIO_write( PORT_0 , PIN2 , PIN_IS_HIGH) ; _1st_button = T1TC;}  	\
+																			if (strcmp( TASK_NAME, "Button_2_Monitor" ) == 0 ){GPIO_write( PORT_0 , PIN3 , PIN_IS_HIGH) ; _2nd_button = T1TC;}  	\
+																			if (strcmp( TASK_NAME, "UART Receiver" ) == 0 ){GPIO_write( PORT_0 , PIN4 , PIN_IS_HIGH) ; Transmit_UART = T1TC;}  	\
+																			if (strcmp( TASK_NAME, "Periodic Transmitter" ) == 0 ){GPIO_write( PORT_0 , PIN5 , PIN_IS_HIGH) ; Receiv_UART = T1TC;}  	\
+																			if (strcmp( TASK_NAME, "Load_1_Simulation" ) == 0 ){GPIO_write( PORT_0 , PIN6 , PIN_IS_HIGH) ; _1st_load = T1TC;}  	\
+																			if (strcmp( TASK_NAME, "Load_2_SimulationLoad_1_Simulation" ) == 0 ){GPIO_write( PORT_0 , PIN7 , PIN_IS_HIGH) ; _2nd_load = T1TC;}  	\
 																			if (strcmp( TASK_NAME, "IDLE" ) == 0 ){GPIO_write( PORT_0 , PIN8 , PIN_IS_HIGH); }  				\
 										 while(0)
 
 
-#define traceTASK_SWITCHED_OUT()			if (strcmp( TASK_NAME, "first" ) == 0 ){GPIO_write( PORT_0 , PIN2 , PIN_IS_LOW) ; SumExe += T1TC-_1st_button;}  \
-																			if (strcmp( TASK_NAME, "second" ) == 0 ){GPIO_write( PORT_0 , PIN3 , PIN_IS_LOW ); SumExe += T1TC-_2nd_button;}  \
-																			if (strcmp( TASK_NAME, "Trans" ) == 0 ){GPIO_write( PORT_0 , PIN4 , PIN_IS_LOW ); SumExe += T1TC-Transmit_UART;}  \
-																			if (strcmp( TASK_NAME, "Recv" ) == 0 ){GPIO_write( PORT_0 , PIN5 , PIN_IS_LOW ); SumExe += T1TC-Receiv_UART;}  \
-																			if (strcmp( TASK_NAME, "load1" ) == 0 ){GPIO_write( PORT_0 , PIN6 , PIN_IS_LOW ); SumExe += T1TC-_1st_load;}  \
-																			if (strcmp( TASK_NAME, "load2" ) == 0 ){GPIO_write( PORT_0 , PIN7 , PIN_IS_LOW); SumExe += T1TC-_2nd_load;}  \
+#define traceTASK_SWITCHED_OUT()			if (strcmp( TASK_NAME, "Button_1_Monitor" ) == 0 ){GPIO_write( PORT_0 , PIN2 , PIN_IS_LOW) ; SumExe += T1TC-_1st_button;}  \
+																			if (strcmp( TASK_NAME, "Button_2_Monitor" ) == 0 ){GPIO_write( PORT_0 , PIN3 , PIN_IS_LOW ); SumExe += T1TC-_2nd_button;}  \
+																			if (strcmp( TASK_NAME, "UART Receiver" ) == 0 ){GPIO_write( PORT_0 , PIN4 , PIN_IS_LOW ); SumExe += T1TC-Transmit_UART;}  \
+																			if (strcmp( TASK_NAME, "Periodic Transmitter" ) == 0 ){GPIO_write( PORT_0 , PIN5 , PIN_IS_LOW ); SumExe += T1TC-Receiv_UART;}  \
+																			if (strcmp( TASK_NAME, "Load_1_Simulation" ) == 0 ){GPIO_write( PORT_0 , PIN6 , PIN_IS_LOW ); SumExe += T1TC-_1st_load;}  \
+																			if (strcmp( TASK_NAME, "Load_2_Simulation" ) == 0 ){GPIO_write( PORT_0 , PIN7 , PIN_IS_LOW); SumExe += T1TC-_2nd_load;}  \
 																			if (strcmp( TASK_NAME, "IDLE" ) == 0 ){GPIO_write( PORT_0 , PIN8 , PIN_IS_LOW ); }  						\
 										 LoadCPU = SumExe * 100 / T1TC;														\
 										 while(0)

@@ -1,15 +1,34 @@
-#include "app.h"
 
-// Macros for Each Task Period(DeadLine)
-#define BUTTON_ONE_PERIOD              			50
-#define BUTTON_TWO_PERIOD              			50
-#define UART_TRANSC_PERIOD            			20
-#define PERIODC_TRANSMIT_PERIOD             100
-#define LOAD_ONE_PERIOD             				10
-#define LOAD_TWO_PERIOD              				100
+#include "app.h"
 
 
 /*-----------------------------------------------------------*/
+
+
+// Macros for Each Task Period(DeadLine)
+#define BUTTON_ONE_PERIOD              			 ( ( BaseType_t ) 50 )
+#define BUTTON_TWO_PERIOD              			 ( ( BaseType_t ) 50 )
+#define UART_RECIEVER_PERIOD            		 ( ( BaseType_t ) 20 )
+#define PERIODC_TRANSMIT_PERIOD              ( ( BaseType_t ) 100 )
+#define LOAD_ONE_PERIOD             				 ( ( BaseType_t ) 10 )
+#define LOAD_TWO_PERIOD              				 ( ( BaseType_t ) 100 )
+
+
+
+/* Constants to setup I/O and processor. */
+#define mainBUS_CLK_FULL	( ( unsigned char ) 0x01 )
+
+/* Constants for the ComTest demo application tasks. */
+#define mainCOM_TEST_BAUD_RATE	( ( unsigned long ) 115200 )
+
+
+
+char _UART_Receiver_ [50];
+char Button_One_Falling_Edge_String [] = "\n Button1 Falling Edge Catched \n";
+char Button_One_Rising_Edge_String [] = "\n Button1 Rising Edge Catched \n";
+char Button_Two_Falling_Edge_String [] = "\n Button2 Falling Edge Catched \n";
+char Button_Two_Rising_Edge_String [] = "\n Button2 Rising Edge Catched \n";
+char Periodic_Transmitter_String [] = "\n Periodic_Message \n";
 
 /*
  * Configure the processor for use with the Keil demo board.  This is very
@@ -19,10 +38,13 @@
 static void prvSetupHardware( void );
 /*-----------------------------------------------------------*/
 
- 
- /*Tasks Implemntations */
- 
- /*
+
+
+
+
+/* Tasks Implementation */
+
+/*
  Task One --> Button_1_Monitor
  
  The Functionality of this task is to catch any change on the Port0-Pin0 that refers to button one
@@ -30,157 +52,121 @@ static void prvSetupHardware( void );
  and send data if any changes happend to the consumer task
  
  */
- 
- void Button_1_Monitor( void * pvParameters )
+void Button_1_Monitor( void * pvParameters )
 {
-	pinState_t Button_one_current_state;
-	
-	pinState_t Button_one_previous_state = GPIO_read(PORT_0 , PIN0);
-	
+
 	TickType_t Current_Tick = xTaskGetTickCount();
+	pinState_t Button_one_previous_state =  GPIO_read(PORT_0,PIN0);
+	pinState_t Button_one_current_state;
+
 	
-	char Edge_Sign = 0;
-	
-	
-	for( ;; )
-	{
-		//Get the Curent status of the pin0
-		Button_one_current_state = GPIO_read(PORT_0 , PIN0);
-		
-		if( Button_one_current_state == PIN_IS_HIGH && Button_one_previous_state == PIN_IS_LOW)
-		{
-	
-			// The last status was low and now is high so this is a positive edge
+    for( ;; )
+    {
+			Button_one_current_state = GPIO_read(PORT_0,PIN0);
 			
-		   	Edge_Sign = 'p';
-		}
-		
-		else if (Button_one_current_state == PIN_IS_LOW && Button_one_previous_state == PIN_IS_HIGH)
-		{
-				
-			// The last status was high and now is low so this is a negative edge
-			
-				Edge_Sign = 'n';	
-		}
-		
-		// This part for protection if there's no change on the button one pin
-		else
-		{	
-				Edge_Sign = '.';
-		}
-		
-		// Update the previous state of the Button1 with the current state
-		Button_one_previous_state = Button_one_current_state;
-		
-		//Send data to the UART Recieve Task to print the Right string
-		
-		xQueueOverwrite( Q_1 , &Edge_Sign );
-		
-		
+			if (Button_one_current_state == PIN_IS_LOW && Button_one_previous_state == PIN_IS_HIGH )
+			{
+				if (xQueue)
+				{
+					xQueueSend( xQueue, (char *)&Button_One_Falling_Edge_String, (TickType_t) 0);
+				}
+			}
+			else if (Button_one_current_state == PIN_IS_HIGH && Button_one_previous_state == PIN_IS_LOW)
+			{
+				if (xQueue)
+				{
+					xQueueSend( xQueue, (char *)&Button_One_Rising_Edge_String, (TickType_t) 0);
+				}
+			}
+			Button_one_previous_state = Button_one_current_state;
+					
 		// This part for simulation to visulaize when this task come in the logic analyzer
-		GPIO_write(PORT_0,PIN0,PIN_IS_LOW);
-		vTaskDelayUntil( &Current_Tick ,50);
-		GPIO_write(PORT_0,PIN0,PIN_IS_HIGH);
+			GPIO_write(PORT_0,PIN2,PIN_IS_LOW);
+			vTaskDelayUntil( &Current_Tick ,50);
+			GPIO_write(PORT_0,PIN2,PIN_IS_HIGH);
+    }
 		
-	}
 }
 
 
+
+
+
+
  /*
- Task One --> Button_2_Monitor
+ Task Two --> Button_2_Monitor
  
  The Functionality of this task is to catch any change on the Port0-Pin1 that refers to button two
  
  and send data if any changes happend to the consumer task
  
  */
-
 void Button_2_Monitor( void * pvParameters )
 {
-	pinState_t Button_two_current_state;
-	
-	pinState_t Button_two_previous_state = GPIO_read(PORT_0 , PIN1);
-	
 	TickType_t Current_Tick = xTaskGetTickCount();
-	
-	char Edge_Sign = 0;
-	
-	
-	for( ;; )
-	{
-		//Get the Curent status of the pin0
-		Button_two_current_state = GPIO_read(PORT_0 , PIN1);
-		
-		if( Button_two_current_state == PIN_IS_HIGH && Button_two_previous_state == PIN_IS_LOW)
-		{
-	
-			// The last status was low and now is high so this is a positive edge
-			
-		   	Edge_Sign = 'p';
-		}
-		
-		else if (Button_two_current_state == PIN_IS_LOW && Button_two_previous_state == PIN_IS_HIGH)
-		{
-				
-			// The last status was high and now is low so this is a negative edge
-			
-				Edge_Sign = 'n';	
-		}
-			
-		// This part for protection if there's no change on the button two pin
-		else
-		{	
-				Edge_Sign = '.';
-		}
-		
-		// Update the previous state of the Button1 with the current state
-		Button_two_previous_state = Button_two_current_state;
-		
-		//Send data to the UART Recieve Task to print the Right string
-		xQueueOverwrite( Q_2 , &Edge_Sign ); 
-		
-		
-		// This part for simulation to visulaize when this task come in the logic analyzer
-		GPIO_write(PORT_0,PIN1,PIN_IS_LOW);
-		vTaskDelayUntil( &Current_Tick , 50);
-		GPIO_write(PORT_0,PIN1,PIN_IS_HIGH);
+	pinState_t Button_two_previous_state = GPIO_read(PORT_0,PIN1);
+	pinState_t Button_two_current_state;
 
-	}
+    for( ;; )
+    {
+			Button_two_current_state = GPIO_read(PORT_0,PIN1);
+			
+			if (Button_two_current_state == PIN_IS_LOW && Button_two_previous_state == PIN_IS_HIGH )
+			{
+				if (xQueue)
+				{
+					xQueueSend( xQueue, (char *)&Button_Two_Falling_Edge_String, (TickType_t) 0);
+				}
+			}
+			else if (Button_two_current_state == PIN_IS_HIGH && Button_two_previous_state == PIN_IS_LOW)
+			{
+				if (xQueue)
+				{
+					xQueueSend( xQueue, (char *)&Button_Two_Rising_Edge_String, (TickType_t) 0);
+				}
+			}
+			Button_two_previous_state = Button_two_current_state;
+			
+			// This part for simulation to visulaize when this task come in the logic analyzer
+			GPIO_write(PORT_0,PIN3,PIN_IS_LOW);
+			vTaskDelayUntil( &Current_Tick ,50);
+			GPIO_write(PORT_0,PIN3,PIN_IS_HIGH);
+    }
 }
 
- 
- 
- 
+
+
+
+
+
+
+
  /*
  Task Three --> Periodic Transmit
  
  This Function Will send Peiodic string which is New_Period Every 100ms to the conumer task (UART Transc) 
  
  */
- void Periodic_Transmitter (void * pvParameters )
-{   
+
+void Periodic_Transmitter( void * pvParameters )
+{
 	
 	TickType_t Current_Tick = xTaskGetTickCount();
-	
-	char String_s[] = "\nNew_Period.";
-	
-	int size = sizeof(String_s)/sizeof(String_s[0]);
-	int i =0;
-	
-	
-	for(;;)
-	{
-		for(i=0 ; i<size ; i++)
-		{	
-			xQueueSend(Q_3 , String_s+i ,100); 
-		}
-		
-		// This part for simulation to visulaize when this task come in the logic analyzer
-		GPIO_write(PORT_0,PIN2,PIN_IS_LOW);
-		vTaskDelayUntil( &Current_Tick , 100);
-		GPIO_write(PORT_0,PIN2,PIN_IS_HIGH);
-		
-	}
+
+
+    for( ;; )
+    {
+			if(xQueue)
+			{
+				xQueueSend ( xQueue, (void *)&Periodic_Transmitter_String, (TickType_t) 0);
+			}
+			
+			
+			// This part for simulation to visulaize when this task come in the logic analyzer
+			GPIO_write(PORT_0,PIN4,PIN_IS_LOW);
+			vTaskDelayUntil( &Current_Tick ,100);
+			GPIO_write(PORT_0,PIN4,PIN_IS_HIGH);
+    }
 }
 
 
@@ -192,156 +178,158 @@ Thsi Functionnality of this task is to recieve the data from other task and dipl
 by using UART communication protocol 
 
 */
-void Uart_Receiver (void * pvParameters )
-{   
-	uint8_t size = 15, i = 0;
-	char Button_one_edge, Button_two_edge;
-	
+void UART_Receiver( void * pvParameters )
+{
+
 	TickType_t Current_Tick = xTaskGetTickCount();
-	
-	char String_Recieved[15];
-	char Positive_Edge[]="\nPositive Edge Catched\n";
-	char Negative_Edge[]="\nNegative Edge Catched\n";
-	
-	for( ; ; )
-	{
-		// Check if the data is coming from Queue one which refers to Button one Task,
-		// and make sure that there's a chnage happend on the button one pin
-		if( (xQueueReceive(Q_1, &Button_one_edge , 0)) && (Button_one_edge != '.'))
-		{
-			switch(Button_one_edge)
+
+    for( ;; )
+    {
+			if ( xQueueReceive ( xQueue, &_UART_Receiver_, (TickType_t) 0) == pdTRUE)
 			{
-				// If the Recieved char is p, this means that a positive edge is detected in button one pin
-				case 'p': vSerialPutString((signed char *) Positive_Edge, strlen(Positive_Edge));
-									break;
-				// If the Recieved char is n, this means that a negtaive edge is detected in button one pin
-				case 'n':	vSerialPutString((signed char *) Negative_Edge, strlen(Negative_Edge));
-									break;	
-			}	
-		}
-		
-		
-		// Check if the data is coming from Queue Two which refers to Button Two Task,
-		// and make sure that there's a chnage happend on the button Two pin
-		if( (xQueueReceive(Q_2, &Button_two_edge , 0)) && (Button_two_edge != '.'))
-		{
-			switch(Button_two_edge)
-			{
-				// If the Recieved char is p, this means that a positive edge is detected in button two pin
-				case 'p': vSerialPutString((signed char *) Positive_Edge, strlen(Positive_Edge));
-									break;
-				// If the Recieved char is n, this means that a negtaive edge is detected in button two pin
-				case 'n':	vSerialPutString((signed char *) Negative_Edge, strlen(Negative_Edge));
-									break;
-			}		
-		}
-		
-		// Here, we recieve the data that is coming from the Periodic Transmit Task Every 100ms
-		if( uxQueueMessagesWaiting(Q_3) >0)
-		{
-			for(i=0 ; i<size ; i++)
-			{
-				xQueueReceive( Q_3, (String_Recieved+i) , 0);
+				vSerialPutString( (signed char *)_UART_Receiver_, strlen(_UART_Receiver_));
 			}
-			vSerialPutString( (signed char *) String_Recieved, strlen(String_Recieved));
-			xQueueReset(Q_3);
-		}
 			
-
-		// This part for simulation to visulaize when this task come in the logic analyzer
-		GPIO_write(PORT_0,PIN3,PIN_IS_LOW);
-		vTaskDelayUntil( &Current_Tick , 20);
-		GPIO_write(PORT_0,PIN3,PIN_IS_HIGH);
-	}
+			// This part for simulation to visulaize when this task come in the logic analyzer
+			GPIO_write(PORT_0,PIN5,PIN_IS_LOW);
+			vTaskDelayUntil( &Current_Tick ,20);
+			GPIO_write(PORT_0,PIN5,PIN_IS_HIGH);
+    }
 }
 
 
- /*
- Task Five --> Load_1_Simulation
- 
- The Functionality of this task is to make load on the cpu to see if this will cause CPU load or not
- 
- */
-void Load_1_Simulation ( void * pvParameters )
+
+
+// /*
+// Task Five --> Load_1_Simulation
+// 
+// The Functionality of this task is to make load on the cpu to see if this will cause CPU load or not
+// 
+// */
+void Load_1_Simulation( void * pvParameters )
 {
-	uint32_t i = 0;
-	TickType_t Current_Tick = xTaskGetTickCount();
 
-	for( ; ; )
-	{
-		// We use 12Mhz CPU so 12000 is equal to 1ms ,, we need 5ms so we need 5 x 12000 counts 
-		
-		for( i=0 ; i <= 12000*5; i++);
-		
-		// This part for simulation to visulaize when this task come in the logic analyzer
-		GPIO_write(PORT_0,PIN5,PIN_IS_LOW);
-		vTaskDelayUntil( &Current_Tick , 20);
-		GPIO_write(PORT_0,PIN5,PIN_IS_HIGH);
-		
-	}
-}
-
-
- /*
- Task Five --> Load_2_Simulation
- 
- The Functionality of this task is to make load on the cpu to see if this will cause CPU load or not
- 
- */
-void Load_2_Simulation ( void * pvParameters )
-{
-	uint32_t i = 0;
+	int i;
 	
 	TickType_t Current_Tick = xTaskGetTickCount();
-	for( ; ; )
-	{
-		// We use 12Mhz CPU so 12000 is equal to 1ms ,, we need 12ms so we need 12 x 12000 counts
-		for( i=0 ; i <= 12000*12; i++);
 
-		// This part for simulation to visulaize when this task come in the logic analyzer
-		GPIO_write(PORT_0,PIN6,PIN_IS_LOW);
-		vTaskDelayUntil( &Current_Tick , 100);
-		GPIO_write(PORT_0,PIN6,PIN_IS_HIGH);
-		
-	}
+    for( ;; )
+    {
+			for ( i=0 ; i<37315 ; i++ );
+			
+			// This part for simulation to visulaize when this task come in the logic analyzer
+			GPIO_write(PORT_0,PIN6,PIN_IS_LOW);
+			vTaskDelayUntil( &Current_Tick ,10);
+			GPIO_write(PORT_0,PIN6,PIN_IS_HIGH);
+    }
 }
- 
- 
+
+
+// /*
+// Task Six --> Load_2_Simulation
+// 
+// The Functionality of this task is to make load on the cpu to see if this will cause CPU load or not
+// 
+// */
+void Load_2_Simulation( void * pvParameters )
+{
+	int i;
+	TickType_t Current_Tick = xTaskGetTickCount();
+    for( ;; )
+    {
+			for ( i=0 ; i<68330 ; i++ );
+			
+			// This part for simulation to visulaize when this task come in the logic analyzer
+			GPIO_write(PORT_0,PIN7,PIN_IS_LOW);
+			vTaskDelayUntil( &Current_Tick ,100);
+			GPIO_write(PORT_0,PIN7,PIN_IS_HIGH);
+			
+			
+    }
+}
+
+/*
+ * Application entry point:
+ * Starts all the other tasks, then starts the scheduler. 
+ */
 int main( void )
 {
-	/*Hardware setup */
+	/* Setup the hardware for use with the Keil demo board. */
 	prvSetupHardware();
- 
-  // Here we create three Queues to put in them the data that sent from Task1, Task2 and Task3 to the conumer task
-	Q_1 = xQueueCreate( 1, sizeof(char) );
-	Q_2 = xQueueCreate( 1, sizeof(char) );
-	Q_3 = xQueueCreate( 15, sizeof(char) );
 	
-    /* Create Tasks here */  
+	xQueue = xQueueCreate ( 1, sizeof(_UART_Receiver_)) ;
 	
-	xTaskPeriodicCreate(Button_1_Monitor, "Button1", 100, ( void * ) 0, 1, &B1_taskHandler,	BUTTON_ONE_PERIOD);      	
-					
-	xTaskPeriodicCreate(Button_2_Monitor, "Button2", 100, ( void * ) 0, 1,	&B2_taskHandler, BUTTON_TWO_PERIOD);      				
+	xTaskPeriodicCreate(
+                    Button_1_Monitor,       /* Function that implements the task. */
+                    "Button_1_Monitor",          /* Text name for the task. */
+                    configMINIMAL_STACK_SIZE,      /* Stack size in words, not bytes. */
+                    ( void * ) 0,    /* Parameter passed into the task. */
+                    1,/* Priority at which the task is created. */
+                    &Button_1_Monitor_Handler,
+										BUTTON_ONE_PERIOD);      /* Used to pass out the created task's handle. */
 										
-	xTaskPeriodicCreate(Periodic_Transmitter, "Uart_Trans", 100, ( void * ) 0, 1, &Trans_TaskHandler, UART_TRANSC_PERIOD);  
+	xTaskPeriodicCreate(
+                    Button_2_Monitor,       /* Function that implements the task. */
+                    "Button_2_Monitor",          /* Text name for the task. */
+                    configMINIMAL_STACK_SIZE,      /* Stack size in words, not bytes. */
+                    ( void * ) 0,    /* Parameter passed into the task. */
+                    1,/* Priority at which the task is created. */
+                    &Button_2_Monitor_Handler,
+										BUTTON_TWO_PERIOD);      /* Used to pass out the created task's handle. */
+
+	xTaskPeriodicCreate(
+                    Periodic_Transmitter,       /* Function that implements the task. */
+                    "Periodic Transmitter",          /* Text name for the task. */
+                    configMINIMAL_STACK_SIZE,      /* Stack size in words, not bytes. */
+                    ( void * ) 0,    /* Parameter passed into the task. */
+                    1,/* Priority at which the task is created. */
+                    &Periodic_Transmitter_Handler,
+										PERIODC_TRANSMIT_PERIOD);      /* Used to pass out the created task's handle. */
+
+	xTaskPeriodicCreate(
+                    UART_Receiver,       /* Function that implements the task. */
+                    "UART Receiver",          /* Text name for the task. */
+                    configMINIMAL_STACK_SIZE,      /* Stack size in words, not bytes. */
+                    ( void * ) 0,    /* Parameter passed into the task. */
+										1,/* Priority at which the task is created. */
+                    &UART_Receiver_Handler,
+										UART_RECIEVER_PERIOD);      /* Used to pass out the created task's handle. */
 										
-	xTaskPeriodicCreate(Uart_Receiver, "Peroidic_Transmit", 100, ( void * ) 0, 1, &Receiv_TaskHandler,	PERIODC_TRANSMIT_PERIOD);      				
-
-	xTaskPeriodicCreate(Load_1_Simulation,  "Load_one", 100, ( void * ) 0, 1, &L1_TaskHandler, LOAD_ONE_PERIOD);      				
-																		
-	xTaskPeriodicCreate(Load_2_Simulation, "Load_two", 100, ( void * ) 0, 1, &L2_TaskHandler, LOAD_TWO_PERIOD); 
+	xTaskPeriodicCreate(
+                    Load_1_Simulation,       /* Function that implements the task. */
+                    "Load_1_Simulation",          /* Text name for the task. */
+                    configMINIMAL_STACK_SIZE,      /* Stack size in words, not bytes. */
+                    ( void * ) 0,    /* Parameter passed into the task. */
+                    1,/* Priority at which the task is created. */
+                    &Load_1_Simulation_Handler,
+										LOAD_ONE_PERIOD);      /* Used to pass out the created task's handle. */
 										
+	xTaskPeriodicCreate(
+                    Load_2_Simulation,       /* Function that implements the task. */
+                    "Load_2_Simulation",          /* Text name for the task. */
+                    configMINIMAL_STACK_SIZE,      /* Stack size in words, not bytes. */
+                    ( void * ) 0,    /* Parameter passed into the task. */
+                    1,/* Priority at which the task is created. */
+                    &Load_2_Simulation_Handler,
+										LOAD_TWO_PERIOD);      /* Used to pass out the created task's handle. */
+										
+							
 
+	/* Now all the tasks have been started - start the scheduler.
 
-
+	NOTE : Tasks run in system mode and the scheduler runs in Supervisor mode.
+	The processor MUST be in supervisor mode when vTaskStartScheduler is 
+	called.  The demo applications included in the FreeRTOS.org download switch
+	to supervisor mode prior to main being called.  If you are not using one of
+	these demo application projects then ensure Supervisor mode is used here. */
 	vTaskStartScheduler();
+
 	/* Should never reach here!  If you do then there was not enough heap
 	available for the idle task to be created. */
 	for( ;; );
 }
-
-
 /*-----------------------------------------------------------*/
+
 
 void vApplicationTickHook (void)
 {
@@ -349,14 +337,19 @@ void vApplicationTickHook (void)
 	GPIO_write(PORT_0,PIN9, PIN_IS_LOW);
 }
 
-//initialize timer1
-static void configTimer1(void)
-{  T1PR = 1000; 
+
+/* Function to reset timer 1 */
+void timer1Reset(void)
+{
+	T1TCR |= 0x2;
+	T1TCR &= ~0x2;
 }
 
-//reset timer1
-void timer1Reset(void)
-{  T1TCR |= 0x2; T1TCR &= ~0x2;
+/* Function to initialize and start timer 1 */
+static void configTimer1(void)
+{
+	T1PR = 1000;
+	T1TCR |= 0x1;
 }
 
 static void prvSetupHardware( void )
@@ -377,5 +370,3 @@ static void prvSetupHardware( void )
 	VPBDIV = mainBUS_CLK_FULL;
 }
 /*-----------------------------------------------------------*/
-
-
